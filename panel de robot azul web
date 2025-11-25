@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Panel de Control Robot - Clo Azul v2.0</title>
+    <style>
+        :root {
+            --clo-azul-dark: #2c3e50;
+            --clo-azul-medium: #3498db;
+            --clo-azul-light: #3ba3e9;
+            --text-color-light: #f0f4f5;
+            --success: #2ecc71;
+            --danger: #e74c3c;
+            --warning: #f1c40f;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--clo-azul-dark);
+            color: var(--text-color-light);
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+        }
+
+        h1 {
+            color: var(--clo-azul-medium);
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .dashboard-container {
+            max-width: 900px;
+            width: 90%;
+            margin-top: 20px;
+            background: var(--clo-azul-medium);
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.5);
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+        }
+
+        .panel {
+            flex: 1;
+            min-width: 300px;
+            background-color: #3f5b7a;
+            padding: 20px;
+            border-radius: 10px;
+            border: 1px solid var(--clo-azul-light);
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+        }
+
+        h2 {
+            color: var(--clo-azul-light);
+            border-bottom: 2px solid var(--clo-azul-light);
+            padding-bottom: 5px;
+            margin-top: 0;
+            font-size: 1.5em;
+        }
+
+        /* --- Telemetría y Mapa --- */
+        .telemetry div {
+            margin: 8px 0;
+            font-size: 1.1em;
+        }
+        
+        .telemetry span {
+            font-weight: bold;
+        }
+
+        /* Mapa de Visualización */
+        #robot-map {
+            width: 100%;
+            height: 250px;
+            background-color: #273444;
+            border: 2px solid #5a7b9e;
+            border-radius: 5px;
+            position: relative;
+            margin-top: 15px;
+            overflow: hidden;
+        }
+
+        #robot-icon {
+            position: absolute;
+            width: 30px;
+            height: 30px;
+            background-color: var(--warning);
+            border: 3px solid var(--text-color-light);
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            transition: left 0.1s linear, bottom 0.1s linear;
+        }
+        
+        /* Indicador de Batería */
+        .battery-bar {
+            background-color: var(--clo-azul-dark);
+            border: 1px solid var(--clo-azul-light);
+            border-radius: 5px;
+            height: 20px;
+            overflow: hidden;
+            margin-top: 5px;
+        }
+
+        .battery-fill {
+            height: 100%;
+            transition: width 0.5s ease;
+        }
+        
+        .full { background-color: var(--success); }
+        .medium { background-color: var(--warning); }
+        .low { background-color: var(--danger); }
+
+        /* --- Controles --- */
+        .command-section {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 15px;
+            padding: 5px;
+            border-bottom: 1px dashed rgba(255, 255, 255, 0.1);
+        }
+
+        .command-section:last-child {
+            border-bottom: none;
+        }
+
+        .controls button {
+            padding: 10px 15px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 1em;
+            transition: background-color 0.3s;
+            margin-left: auto;
+        }
+        
+        .controls input[type="number"] {
+            background-color: var(--clo-azul-dark);
+            color: var(--text-color-light);
+            border: 1px solid var(--clo-azul-light);
+            padding: 8px;
+            border-radius: 5px;
+            width: 60px;
+            text-align: center;
+        }
+        
+        .btn-move { background-color: var(--success); color: white; }
+        .btn-stop { background-color: var(--danger); color: white; }
+        .btn-set { background-color: var(--clo-azul-light); color: var(--clo-azul-dark); }
+        
+        .btn-move:hover { background-color: #27ae60; }
+        .btn-stop:hover { background-color: #c0392b; }
+        .btn-set:hover { background-color: #2980b9; }
+        
+        /* --- Feedback y Loader --- */
+        .loader {
+            border: 4px solid #f3f3f3;
+            border-radius: 50%;
+            border-top: 4px solid var(--clo-azul-light);
+            width: 20px;
+            height: 20px;
+            animation: spin 1s linear infinite;
+            margin-left: 10px;
+            display: none;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* Grid para el mapa */
+        .grid-line {
+            position: absolute;
+            background-color: rgba(255, 255, 255, 0.1);
+        }
+        .grid-x { width: 100%; height: 1px; }
+        .grid-y { height: 100%; width: 1px; }
+    </style>
+</head>
+<body>
+
+    <h1>Panel de Control Robot - Clo Azul v2.0</h1>
+
+    <div class="dashboard-container">
+        
+        <div class="panel telemetry">
+            <h2>Telemetría en Vivo</h2>
+            
+            <div id="robot-map">
+                <!-- Grid lines will be added by JS -->
+                <div id="robot-icon"></div>
+            </div>
+
+            <div>Posición X: <span id="pos-x">0.00</span></div>
+            <div>Posición Y: <span id="pos-y">0.00</span></div>
+            <div>Orientación Theta: <span id="pos-theta">0.00</span></div>
+            <div>Estado: <span id="is-moving">DETENIDO</span></div>
+            
+            <h3>Batería (<span id="battery-percent">100%</span>)</h3>
+            <div class="battery-bar"><div id="battery-fill" class="battery-fill full" style="width: 100%;"></div></div>
+            
+            <div style="font-size: 0.8em; margin-top: 10px;">Último Tick (ms): <span id="timestamp">N/A</span></div>
+        </div>
+
+        <div class="panel controls">
+            <h2>Comandos de Control</h2>
+            
+            <div class="command-section">
+                <label>Velocidad X (vx):</label>
+                <input type="number" id="vx-input" value="0.5" step="0.1">
+                <button onclick="sendCommand('move')" class="btn-move">Mover</button>
+                <button onclick="sendCommand('stop')" class="btn-stop">Detener</button>
+                <div id="move-loader" class="loader"></div>
+            </div>
+            
+            <div class="command-section">
+                <label>Set Pose (X, Y, &theta;):</label>
+                <input type="number" id="set-x" value="1.0" step="0.5" title="Posición X">
+                <input type="number" id="set-y" value="2.0" step="0.5" title="Posición Y">
+                <input type="number" id="set-theta" value="0.0" step="0.1" title="Orientación Theta">
+                <button onclick="sendCommand('set_pose')" class="btn-set">Fijar Pose</button>
+                <div id="pose-loader" class="loader"></div>
+            </div>
+
+            <div class="command-section">
+                <label>Set Batería:</label>
+                <input type="number" id="set-battery" value="90" min="0" max="100">
+                <button onclick="sendCommand('set_battery')" class="btn-set">Fijar Batería</button>
+                <div id="battery-loader" class="loader"></div>
+            </div>
+
+            <h3 style="margin-top: 20px;">Registro de Respuestas</h3>
+            <div id="response-msg" style="font-size: 0.8em; padding: 10px; background-color: #273444; border-radius: 5px; white-space: pre-wrap;">Esperando comandos...</div>
+        </div>
+
+    </div>
+
+    <script>
+        // Simulated telemetry data
+        let telemetryData = {
+            x: 2.5,
+            y: 2.5,
+            theta: 0,
+            moving: false,
+            battery: 100,
+            timestamp_ms: Date.now()
+        };
+
+        // Simulation parameters
+        const MAP_WIDTH = 450;
+        const MAP_HEIGHT = 250;
+        const X_MIN = 0.0, X_MAX = 5.0;
+        const Y_MIN = 0.0, Y_MAX = 5.0;
+        let isMovingSimulation = false;
+        let targetPosition = { x: 2.5, y: 2.5 };
+
+        const robotIcon = document.getElementById('robot-icon');
+        const isMovingSpan = document.getElementById('is-moving');
+        const batteryFill = document.getElementById('battery-fill');
+        const batteryPercentSpan = document.getElementById('battery-percent');
+
+        // Initialize map grid
+        function initializeMapGrid() {
+            const map = document.getElementById('robot-map');
+            
+            // Add vertical grid lines (X axis)
+            for (let i = 0; i <= 5; i++) {
+                const line = document.createElement('div');
+                line.className = 'grid-line grid-y';
+                line.style.left = `${(i / 5) * 100}%`;
+                map.appendChild(line);
+            }
+            
+            // Add horizontal grid lines (Y axis)
+            for (let i = 0; i <= 5; i++) {
+                const line = document.createElement('div');
+                line.className = 'grid-line grid-x';
+                line.style.bottom = `${(i / 5) * 100}%`;
+                map.appendChild(line);
+            }
+        }
+
+        // Update telemetry display
+        function updateTelemetry(data) {
+            document.getElementById('pos-x').textContent = data.x.toFixed(2);
+            document.getElementById('pos-y').textContent = data.y.toFixed(2);
+            document.getElementById('pos-theta').textContent = data.theta.toFixed(2);
+            document.getElementById('timestamp').textContent = data.timestamp_ms;
+            
+            isMovingSpan.textContent = data.moving ? 'EN MOVIMIENTO' : 'DETENIDO';
+            isMovingSpan.style.color = data.moving ? 'var(--success)' : 'var(--warning)';
+
+            const batteryLevel = Math.max(0, Math.min(100, Math.floor(data.battery)));
+            batteryPercentSpan.textContent = `${batteryLevel}%`;
+            batteryFill.style.width = `${batteryLevel}%`;
+            
+            batteryFill.className = 'battery-fill'; 
+            if (batteryLevel > 70) {
+                batteryFill.classList.add('full');
+            } else if (batteryLevel > 20) {
+                batteryFill.classList.add('medium');
+            } else {
+                batteryFill.classList.add('low');
+            }
+            
+            const mapX = (data.x - X_MIN) / (X_MAX - X_MIN) * MAP_WIDTH;
+            const mapY = (data.y - Y_MIN) / (Y_MAX - Y_MIN) * MAP_HEIGHT;
+            const safeX = Math.min(MAP_WIDTH, Math.max(0, mapX));
+            const safeY = Math.min(MAP_HEIGHT, Math.max(0, mapY)); 
+
+            robotIcon.style.left = `${safeX}px`;
+            robotIcon.style.bottom = `${safeY}px`;
+            robotIcon.style.transform = `translate(-50%, -50%) rotate(${-data.theta.toFixed(0)}deg)`;
+        }
+
+        // Simulate robot movement
+        function simulateMovement() {
+            if (isMovingSimulation && (Math.abs(telemetryData.x - targetPosition.x) > 0.05 || Math.abs(telemetryData.y - targetPosition.y) > 0.05)) {
+                const speed = 0.1;
+                const dx = targetPosition.x - telemetryData.x;
+                const dy = targetPosition.y - telemetryData.y;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+                
+                if (distance > 0) {
+                    telemetryData.x += (dx / distance) * speed;
+                    telemetryData.y += (dy / distance) * speed;
+                    telemetryData.theta = Math.atan2(dy, dx);
+                }
+                
+                telemetryData.battery = Math.max(0, telemetryData.battery - 0.01);
+            } else {
+                isMovingSimulation = false;
+                telemetryData.moving = false;
+            }
+            
+            telemetryData.timestamp_ms = Date.now();
+            updateTelemetry(telemetryData);
+            
+            requestAnimationFrame(simulateMovement);
+        }
+
+        // Send command function (simulated)
+        async function sendCommand(type) {
+            let payload = {};
+            let loaderId;
+
+            if (type === 'move') {
+                const vx = parseFloat(document.getElementById('vx-input').value) || 0;
+                if (vx !== 0) {
+                    // Move in current direction
+                    const direction = telemetryData.theta;
+                    targetPosition = {
+                        x: Math.max(X_MIN, Math.min(X_MAX, telemetryData.x + vx * Math.cos(direction))),
+                        y: Math.max(Y_MIN, Math.min(Y_MAX, telemetryData.y + vx * Math.sin(direction)))
+                    };
+                    isMovingSimulation = true;
+                    telemetryData.moving = true;
+                } else {
+                    isMovingSimulation = false;
+                    telemetryData.moving = false;
+                }
+                payload = { vx: vx, vy: 0.0 };
+                loaderId = 'move-loader';
+            } else if (type === 'stop') {
+                isMovingSimulation = false;
+                telemetryData.moving = false;
+                loaderId = 'move-loader';
+            } else if (type === 'set_pose') {
+                const x = parseFloat(document.getElementById('set-x').value) || 0;
+                const y = parseFloat(document.getElementById('set-y').value) || 0;
+                const theta = parseFloat(document.getElementById('set-theta').value) || 0;
+                telemetryData.x = Math.max(X_MIN, Math.min(X_MAX, x));
+                telemetryData.y = Math.max(Y_MIN, Math.min(Y_MAX, y));
+                telemetryData.theta = theta;
+                payload = { x: x, y: y, theta: theta };
+                loaderId = 'pose-loader';
+            } else if (type === 'set_battery') {
+                const battery = parseInt(document.getElementById('set-battery').value) || 100;
+                telemetryData.battery = Math.max(0, Math.min(100, battery));
+                payload = { battery: battery };
+                loaderId = 'battery-loader';
+            }
+
+            const command = { type, payload };
+            const responseMsg = document.getElementById('response-msg');
+            
+            if (loaderId) document.getElementById(loaderId).style.display = 'block';
+            responseMsg.textContent = `Enviando comando: ${type}...`;
+            
+            // Simulate network delay
+            await new Promise(resolve => setTimeout(resolve, 500));
+            
+            try {
+                // Simulate successful response
+                const mockResponse = { success: true, message: `Comando ${type} ejecutado correctamente` };
+                responseMsg.textContent = `Comando: ${command.type}\nEstado HTTP: 200\nRespuesta: ${JSON.stringify(mockResponse, null, 2)}`;
+                responseMsg.style.color = 'var(--text-color-light)';
+            } catch (error) {
+                responseMsg.textContent = `ERROR DE CONEXIÓN AL SERVIDOR: ${error.message}`;
+                responseMsg.style.color = 'var(--danger)';
+            } finally {
+                if (loaderId) document.getElementById(loaderId).style.display = 'none';
+            }
+            
+            // Update display immediately after command
+            updateTelemetry(telemetryData);
+        }
+        
+        // Initialize
+        initializeMapGrid();
+        updateTelemetry(telemetryData);
+        simulateMovement();
+        
+        // Set initial response message
+        document.getElementById('response-msg').textContent = 'Sistema simulado iniciado correctamente.\nLos comandos se ejecutan localmente.';
+    </script>
+</body>
+</html>
+
